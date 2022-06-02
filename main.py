@@ -73,7 +73,7 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
         embed.set_author(name=name, icon_url=author.avatar_url)
 
         if len(message.attachments) > 0:
-            embed.set_image(message.attachments[0].url)
+            embed.set_image(url=message.attachments[0].url)
 
         await pins_channel.send(embed=embed)
 
