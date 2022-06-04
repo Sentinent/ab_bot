@@ -3,7 +3,7 @@ async-timeout==3.0.1
 attrs==21.4.0
 autopep8==1.6.0
 chardet==4.0.0
-discord.py==1.7.3
+discord.py @ git+https://github.com/Rapptz/discord.py.git@06c1f44d749fa66b3b276adb7ee5616922112aaa
 idna==3.3
 multidict==6.0.2
 mypy==0.960

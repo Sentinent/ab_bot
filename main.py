@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import TypedDict
+from typing import Optional, TypedDict
 
 import discord
 
@@ -18,12 +18,12 @@ with open('./config.json') as f:
 
 already_pinned = []
 
-logging.basicConfig(level=logging.INFO,
+logging.basicConfig(level=logging.DEBUG,
                     format='[%(levelname)s] (%(name)s) %(message)s (%(asctime)s)')
 
-client = discord.Client()
-client.logger = logging.getLogger('Discord Client')
 intents = discord.Intents(reactions=True)
+client = discord.Client(intents=intents)
+client.logger = logging.getLogger('Discord Client')
 
 
 @client.event
@@ -34,43 +34,37 @@ async def on_ready():
 @client.event
 async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
     global already_pinned
+    client.logger.debug(payload)
 
     if payload.guild_id != config['guild_id'] or \
             payload.emoji.name != config['reaction_emoji']:
         return
 
-    guild: discord.Guild = client.get_guild(payload.guild_id)
-    if not guild:
-        client.logger.warning(f'Could not get guild {payload.guild_id}')
-        return
+    #! An API call for every reaction
+    message: discord.Message = await client.get_partial_messageable(
+        payload.channel_id, guild_id=payload.guild_id).fetch_message(payload.message_id)
 
-    channel: discord.TextChannel = client.get_channel(payload.channel_id)
-    if not channel:
-        client.logger.warning(f'Could not find channel {payload.channel_id}.')
-        return
-
-    message: discord.Message = await channel.get_partial_message(payload.message_id).fetch()
     if not message:
-        client.logger.warning(f'Could not get message {payload.channel_id}.')
+        client.logger.warning(f'Could not get message {payload.message_id}.')
         return
 
-    reaction_count = sum(
-        1 for reaction in message.reactions if reaction.emoji == config['reaction_emoji'])
+    target_reaction = next(
+        (x for x in message.reactions if x.emoji == config['reaction_emoji']), None)
 
-    if reaction_count >= config['reactions_needed'] and message.id not in already_pinned:
-        pins_channel: discord.TextChannel = client.get_channel(
-            config['pins_channel'])
+    if target_reaction and target_reaction.count >= config['reactions_needed'] \
+       and message.id not in already_pinned:
 
-        if not pins_channel:
-            client.logger.error('Could not find pins channel.')
-            return
-
+        pins_channel = client.get_partial_messageable(config['pins_channel'])
         embed = discord.Embed(description=f'{message.content}\n\n[Jump!]({message.jump_url})',
                               timestamp=message.created_at)
 
-        author: discord.Member = payload.member
-        name = f'{author.nick} ({author.name})' if author.nick is not None else author.name
-        embed.set_author(name=name, icon_url=author.avatar_url)
+        author = message.author
+        if type(author) is discord.Member:
+            name = f'{author.nick} ({author.name})' if author.nick is not None else author.name
+        else:
+            # discord.User
+            name = message.author.name
+        embed.set_author(name=name, icon_url=author.display_avatar.url)
 
         if len(message.attachments) > 0:
             embed.set_image(url=message.attachments[0].url)
